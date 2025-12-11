@@ -6,6 +6,3 @@ resources:
   - service-stable.yaml
   - service-canary.yaml
 
-commonLabels:
-  project: project8
-
