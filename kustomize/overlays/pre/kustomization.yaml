@@ -7,6 +7,3 @@ resources:
   - ../../base
   - namespace.yaml
 
-commonLabels:
-  environment: pre
-
