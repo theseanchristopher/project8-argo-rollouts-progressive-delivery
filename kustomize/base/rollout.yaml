@@ -1,0 +1,42 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: project8-nginx-rollout
+  labels:
+    app: project8-nginx
+spec:
+  replicas: 3
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: project8-nginx
+  template:
+    metadata:
+      labels:
+        app: project8-nginx
+    spec:
+      containers:
+        - name: nginx
+          image: 349821334974.dkr.ecr.us-east-1.amazonaws.com/project1-nginx:v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+  strategy:
+    canary:
+      stableService: project8-nginx-stable
+      canaryService: project8-nginx-canary
+      steps:
+        - setWeight: 20
+        - pause:
+            duration: 60
+        - setWeight: 50
+        - pause:
+            duration: 60
+        - setWeight: 100
+

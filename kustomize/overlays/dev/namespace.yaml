@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: project8-dev
+  labels:
+    project: project8
+    environment: dev
+

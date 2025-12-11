@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: project8-rollouts-prod
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/theseanchristopher/project8-argo-rollouts-progressive-delivery.git
+    targetRevision: main
+    path: kustomize/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: project8-prod
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+
