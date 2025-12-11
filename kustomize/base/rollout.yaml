@@ -17,8 +17,8 @@ spec:
     spec:
       containers:
         - name: nginx
-#         image: 349821334974.dkr.ecr.us-east-1.amazonaws.com/project1-nginx:v1
-          image: 349821334974.dkr.ecr.us-east-1.amazonaws.com/project1-nginx:967a38620f6e5dab188227245032ce8c894280e5
+          #         image: 349821334974.dkr.ecr.us-east-1.amazonaws.com/project1-nginx:v1
+          image: 349821334974.dkr.ecr.us-east-1.amazonaws.com/project1-nginx:ea9004f921e82b7bf48d982251cd1268d2d068d2
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
@@ -40,4 +40,3 @@ spec:
         - pause:
             duration: 60
         - setWeight: 100
-
