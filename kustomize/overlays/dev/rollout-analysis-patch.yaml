@@ -13,9 +13,6 @@ spec:
         - analysis:
             templates:
               - templateName: project8-dev-success-rate
-            args:
-              - name: app
-                value: project8-nginx
         - setWeight: 50
         - pause:
             duration: 120

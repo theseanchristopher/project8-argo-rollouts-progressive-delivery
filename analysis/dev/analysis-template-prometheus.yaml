@@ -4,37 +4,16 @@ metadata:
   name: project8-dev-success-rate
   namespace: project8-dev
 spec:
-  args:
-    - name: app
-      value: project8-nginx
   metrics:
-    - name: success-rate
+    - name: restart-count
       interval: 30s
       count: 5
-      # Index error on empty return value
-      #successCondition: result[0] >= 0.95
-      successCondition: len(result) > 0 && result[0] >= 0.95
-      failureCondition: len(result) == 0
-
       failureLimit: 1
+      successCondition: len(result) > 0 && result[0] == 0
+      failureCondition: len(result) == 0 || result[0] > 0
       provider:
         prometheus:
           address: http://kube-prometheus-stack-prometheus.monitoring:9090
           query: |
-            sum(
-              rate(
-                http_requests_total{
-                  app="{{args.app}}",
-                  status!~"5.."
-                }[1m]
-              )
-            )
-            /
-            sum(
-              rate(
-                http_requests_total{
-                  app="{{args.app}}"
-                }[1m]
-              )
-            )
+            sum(increase(kube_pod_container_status_restarts_total{namespace="project8-dev"}[2m]))
 
