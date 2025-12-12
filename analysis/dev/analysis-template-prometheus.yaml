@@ -6,7 +6,7 @@ metadata:
 spec:
   args:
     - name: app
-      value: project8-dev
+      value: project8-nginx
   metrics:
     - name: success-rate
       interval: 30s
