@@ -7,3 +7,11 @@ resources:
   - ../../base
   - namespace.yaml
 
+patches:
+  - path: rollout-analysis-patch.yaml
+    target:
+      group: argoproj.io
+      version: v1alpha1
+      kind: Rollout
+      name: project8-nginx-rollout
+

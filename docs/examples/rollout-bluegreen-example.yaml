@@ -1,0 +1,58 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: project8-nginx-bluegreen-example
+  labels:
+    app: project8-nginx-bluegreen
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: project8-nginx-bluegreen
+  template:
+    metadata:
+      labels:
+        app: project8-nginx-bluegreen
+    spec:
+      containers:
+        - name: nginx
+          image: 349821334974.dkr.ecr.us-east-1.amazonaws.com/project1-nginx:SAMPLE_TAG
+          ports:
+            - containerPort: 80
+  strategy:
+    blueGreen:
+      activeService: project8-nginx-bluegreen-stable
+      previewService: project8-nginx-bluegreen-preview
+      autoPromotionEnabled: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: project8-nginx-bluegreen-stable
+  labels:
+    app: project8-nginx-bluegreen
+spec:
+  type: ClusterIP
+  selector:
+    app: project8-nginx-bluegreen
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: project8-nginx-bluegreen-preview
+  labels:
+    app: project8-nginx-bluegreen
+spec:
+  type: ClusterIP
+  selector:
+    app: project8-nginx-bluegreen
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+

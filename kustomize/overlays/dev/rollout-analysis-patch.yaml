@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: project8-nginx-rollout
+  namespace: project8-dev
+spec:
+  strategy:
+    canary:
+      steps:
+        - setWeight: 20
+        - pause:
+            duration: 60
+        - analysis:
+            templates:
+              - templateName: project8-dev-success-rate
+            args:
+              - name: service-name
+                value: project8
+        - setWeight: 50
+        - pause:
+            duration: 120
+
