@@ -24,7 +24,7 @@ spec:
             sum(
               rate(
                 http_requests_total{
-                  service="{{args.app}}",
+                  app="{{args.app}}",
                   status!~"5.."
                 }[1m]
               )
@@ -33,7 +33,7 @@ spec:
             sum(
               rate(
                 http_requests_total{
-                  service="{{args.app}}"
+                  app="{{args.app}}"
                 }[1m]
               )
             )
