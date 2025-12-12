@@ -5,8 +5,8 @@ metadata:
   namespace: project8-dev
 spec:
   args:
-    - name: service-name
-      value: project8
+    - name: app
+      value: project8-dev
   metrics:
     - name: success-rate
       interval: 30s
@@ -24,7 +24,7 @@ spec:
             sum(
               rate(
                 http_requests_total{
-                  service="{{args.service-name}}",
+                  service="{{args.app}}",
                   status!~"5.."
                 }[1m]
               )
@@ -33,7 +33,7 @@ spec:
             sum(
               rate(
                 http_requests_total{
-                  service="{{args.service-name}}"
+                  service="{{args.app}}"
                 }[1m]
               )
             )
