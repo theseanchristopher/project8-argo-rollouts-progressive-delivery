@@ -11,7 +11,11 @@ spec:
     - name: success-rate
       interval: 30s
       count: 5
-      successCondition: result[0] >= 0.95
+      # Index error on empty return value
+      #successCondition: result[0] >= 0.95
+      successCondition: len(result) > 0 && result[0] >= 0.95
+      failureCondition: len(result) == 0
+
       failureLimit: 1
       provider:
         prometheus:
