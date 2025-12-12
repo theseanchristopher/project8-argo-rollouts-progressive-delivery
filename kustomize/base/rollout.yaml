@@ -18,7 +18,7 @@ spec:
       containers:
         - name: nginx
           #         image: 349821334974.dkr.ecr.us-east-1.amazonaws.com/project1-nginx:v1
-          image: 349821334974.dkr.ecr.us-east-1.amazonaws.com/project1-nginx:c850f01d4bc1250155bf3f5c7aa745ec34051cba
+          image: 349821334974.dkr.ecr.us-east-1.amazonaws.com/project1-nginx:6bae5bca430e47ae0ca7a84dd35a0c08d62793a5
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
