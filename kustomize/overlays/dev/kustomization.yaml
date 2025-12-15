@@ -14,4 +14,10 @@ patches:
       version: v1alpha1
       kind: Rollout
       name: project8-nginx-rollout
+  - path: rollout-crash-test-patch.yaml
+    target:
+      group: argoproj.io
+      version: v1alpha1
+      kind: Rollout
+      name: project8-nginx-rollout
 
