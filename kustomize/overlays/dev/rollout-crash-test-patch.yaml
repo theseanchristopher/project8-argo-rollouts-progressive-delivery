@@ -8,5 +8,6 @@ spec:
     spec:
       containers:
         - name: nginx
+          image: 349821334974.dkr.ecr.us-east-1.amazonaws.com/project1-nginx:f875f5de2bbca28f0438693dc8343be45d0a99fc
           command: ["sh","-c","echo crashing intentionally; exit 1"]
 
