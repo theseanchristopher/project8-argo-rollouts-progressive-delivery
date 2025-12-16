@@ -13,13 +13,6 @@ spec:
         - analysis:
             templates:
               - templateName: project9-restart-rollback-freeze
-                args:
-                  - name: namespace
-                    value: project8-dev
-                  - name: window
-                    value: 2m
-                  - name: threshold
-                    value: "0"
         - setWeight: 50
         - pause:
             duration: 120
