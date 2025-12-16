@@ -12,7 +12,8 @@ spec:
             duration: 60
         - analysis:
             templates:
-              - clusterAnalysisTemplateName: project9-restart-rollback-freeze
+              - templateName: project9-restart-rollback-freeze
+                clusterScope: true
         - setWeight: 50
         - pause:
             duration: 120
