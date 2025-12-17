@@ -3,7 +3,7 @@ kind: Rollout
 metadata:
   name: project8-nginx-rollout
 # namespace set elsewhere; can only lead to conflict later
-# namespace: project8-dev
+# namespace: project8-prod
 spec:
   strategy:
     canary:
@@ -13,7 +13,7 @@ spec:
             duration: 60
         - analysis:
             templates:
-              - templateName: project9-restart-rollback-freeze
+              - templateName: project9-restart-rollback-freeze-prod
                 clusterScope: true
         - setWeight: 50
         - pause:
