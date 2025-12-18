@@ -1,0 +1,11 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: project8-nginx-rollout
+spec:
+  template:
+    spec:
+      containers:
+        - name: nginx
+          image: 349821334974.dkr.ecr.us-east-1.amazonaws.com/project1-nginx:latest
+
