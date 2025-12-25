@@ -1,6 +1,6 @@
 # Rollout Execution (How to Run and Verify the Canary)
 
-This document explains how to validate the rollout is configured correctly and how to observe canary execution, including AnalysisRuns.
+This document explains how to validate that the rollout is configured correctly and how to observe canary execution, including AnalysisRuns.
 
 ---
 
@@ -16,12 +16,12 @@ kubectl get rollout -n project8-dev
 kubectl get analysistemplate -n project8-dev
 ```
 
-### 1.3 Verify analysis step is present in the applied Rollout
+### 1.3 Verify the applied Rollout includes an analysis step
 ```bash
 kubectl get rollout project8-nginx-rollout -n project8-dev -o yaml | grep -n "analysis:"
 ```
 
-If this returns nothing, your overlay patch likely didn’t apply (see `docs/troubleshooting.md`).
+If this returns nothing, your dev overlay patch likely didn’t apply (see `docs/troubleshooting.md`).
 
 ---
 
@@ -30,31 +30,28 @@ If this returns nothing, your overlay patch likely didn’t apply (see `docs/tro
 Argo Rollouts executes canary steps (including analysis) when a **new revision** is created.
 
 A new revision occurs when the Rollout **pod template changes**, commonly:
+
 - image tag changes (most common)
 - pod template annotations change
 - env vars / container args change
 
-If you “release” without changing the pod template, the revision will not increment and you may not get a new AnalysisRun.
-
-### How this project triggers revisions
-In the broader portfolio flow:
-- Project 1’s CI pushes a new image tag
-- GitOps updates the tag (or manifests) so Argo CD sync triggers a new ReplicaSet
+If you “release” without changing the pod template, the revision will not increment and you will not get a new AnalysisRun.
 
 ---
 
 ## 3. Watch the Rollout
 
-If you have the `kubectl argo rollouts` plugin:
+If you have the `kubectl argo rollouts` plugin installed:
 
 ```bash
 kubectl argo rollouts get rollout project8-nginx-rollout -n project8-dev --watch
 ```
 
 What to look for:
-- revision number increment
-- step progression (setWeight, pause, analysis)
-- whether analysis is running / passed / failed
+
+- revision number increments
+- step progression (setWeight → pause → analysis)
+- analysis phase (Running → Successful/Failed)
 
 ---
 
@@ -70,17 +67,17 @@ kubectl get analysisruns -n project8-dev --sort-by=.metadata.creationTimestamp
 kubectl describe analysisrun -n project8-dev <NAME>
 ```
 
-Important fields:
-- **Resolved Prometheus Query** (what was actually executed)
-- Measurements (each evaluation)
-- Final Phase (Successful / Failed / Error)
-- Message (most useful human-readable failure reason)
+Most useful fields:
+
+- **Resolved query** (what was actually executed)
+- measurement values (including `Value: []`)
+- final phase and message
 
 ---
 
-## 5. Verify Prometheus Result Matches the Gate
+## 5. Validate the Gate Query Matches Prometheus
 
-Port-forward Prometheus and run the same query directly:
+Port-forward Prometheus and run the same query:
 
 ```bash
 kubectl port-forward -n monitoring svc/kube-prometheus-stack-prometheus 9090:9090
@@ -88,28 +85,29 @@ curl -s "http://localhost:9090/api/v1/query?query=sum(increase(kube_pod_containe
 ```
 
 Expected:
-- a numeric value, often `0`
+
+- a numeric value (often `0`)
 
 If you see `[]`:
-- the metric does not exist, or
-- your selector matches nothing (wrong namespace), or
-- kube-state-metrics is missing/un-scraped
+
+- the metric doesn’t exist, or
+- the selector matches nothing (wrong namespace), or
+- kube-state-metrics isn’t installed/scraped
 
 ---
 
-## 6. What “Success” Looks Like
+## 6. What Success Looks Like
 
 - Rollout advances beyond the analysis step
-- AnalysisRun shows a consistent `0` value
-- Rollout continues to the next canary weight / pause step
+- AnalysisRun shows consistent `0` values
+- Rollout continues through remaining steps and promotes
 
 ---
 
-## 7. What “Failure” Looks Like
+## 7. What Failure Looks Like
 
-- AnalysisRun phase becomes Failed (or Error)
-- Rollout aborts and shifts back to the stable revision
+- AnalysisRun phase becomes `Failed` (or `Error`)
+- Rollout aborts and returns to the previous stable revision
 - Canary ReplicaSet scales down
-- Rollout indicates rollback to a prior revision
 
-Details: `docs/failure-and-rollback.md`
+See `docs/failure-and-rollback.md`.

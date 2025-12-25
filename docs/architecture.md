@@ -2,14 +2,15 @@
 
 ## 1. Overview
 
-Project 8 implements **progressive delivery** using Argo Rollouts. Instead of deploying a new version all at once, the platform:
+Project 8 implements **progressive delivery** using Argo Rollouts. Instead of updating all pods at once, the platform:
 
-1. Releases a new revision (new ReplicaSet) gradually
-2. Pauses to observe behavior
-3. Runs an automated **metric-based analysis**
-4. Promotes on success or rolls back on failure
+1. Creates a new **revision** (a new ReplicaSet) when the pod template changes (typically the image tag).
+2. Shifts traffic incrementally to the canary revision using a step-based strategy.
+3. Pauses between steps to allow observation.
+4. Executes a **Prometheus-backed analysis** during the rollout.
+5. Promotes on success or **aborts + rolls back** on failure.
 
-This is a production pattern used to reduce blast radius and convert deployments into controlled experiments.
+This pattern reduces blast radius and makes rollout behavior **deterministic and repeatable**.
 
 ---
 
@@ -19,45 +20,49 @@ This is a production pattern used to reduce blast radius and convert deployments
 Argo CD continuously reconciles this repository into the cluster. Git is the source of truth for:
 
 - Rollout objects (base + overlays)
-- AnalysisTemplate resources
-- Environment namespaces and overlays
-- Argo CD Application definitions (if used)
+- Environment namespaces (`project8-dev`, `project8-pre`, `project8-prod`)
+- AnalysisTemplates used by rollouts
+- Argo CD Applications (optional, in `applications/`)
 
-### 2.2 Argo Rollouts (Progressive Delivery)
-Argo Rollouts introduces:
+### 2.2 Argo Rollouts (Progressive Delivery Controller)
+Argo Rollouts extends Kubernetes deployments by introducing:
 
-- `Rollout` resources to replace standard `Deployment` rollouts
-- Canary strategies with weight steps and pauses
-- `AnalysisRun` execution integrated into rollout steps
-- Automatic abort and rollback on failed analysis
+- `Rollout` resources (a Deployment-like controller with advanced strategy)
+- Canary steps (setWeight, pause, analysis)
+- `AnalysisRun` execution integrated into the rollout controller loop
+- Automatic abort and rollback based on analysis outcomes
 
 ### 2.3 Prometheus (Metrics Store + Query API)
-Argo Rollouts can call Prometheus via HTTP to evaluate a rollout gate. Prometheus provides:
+Argo Rollouts queries Prometheus over HTTP as part of an AnalysisRun:
 
-- The metric database (time series)
-- The query language (PromQL)
-- An HTTP endpoint for queries executed by AnalysisRuns
+- Prometheus stores time series scraped from the cluster
+- PromQL selects and transforms those series into values suitable for a gate
+- AnalysisRuns evaluate those values against success/failure conditions
 
 ### 2.4 Kustomize (Base + Overlays)
-Kustomize keeps shared manifests in a base and applies environment-specific deltas via overlays:
+Kustomize keeps shared manifests in a base and applies environment-specific differences via overlays:
 
-- `kustomize/base` defines the core Rollout + Services
-- `kustomize/overlays/dev` injects the analysis step via a patch
-- `analysis/dev` defines the AnalysisTemplate for dev
+- `kustomize/base` defines the core Rollout and stable/canary Services
+- `kustomize/overlays/*` creates namespaces and environment-specific deltas
+- `kustomize/overlays/dev` injects an **analysis step** via a strategic merge patch
+- `analysis/dev` defines the AnalysisTemplate used by the dev rollout
 
 ---
 
 ## 3. End-to-End Flow
 
-1. **CI publishes a new image** (Project 1).  
-2. **GitOps updates manifests** (image tag or rollout changes).  
-3. **Argo CD syncs** the new desired state.  
-4. **Argo Rollouts creates a new revision** (new ReplicaSet).  
-5. Rollout shifts traffic to canary and pauses.  
-6. Rollout executes an **AnalysisRun**:
-   - Prometheus query is executed repeatedly on an interval
-   - Results are evaluated against success/failure conditions
-7. If analysis passes, rollout proceeds. If analysis fails, rollout aborts and rolls back.
+1. **CI publishes a new image** (Project 1).
+2. **GitOps updates the desired state** (image tag or rollout spec).
+3. **Argo CD syncs** the change into the cluster.
+4. **Argo Rollouts detects a pod template change** and creates a new ReplicaSet (new revision).
+5. The rollout executes canary steps:
+   - shift weight to canary
+   - pause
+   - run analysis (creates an AnalysisRun)
+6. **AnalysisRun queries Prometheus** repeatedly on an interval and evaluates results.
+7. Outcome:
+   - **Pass:** rollout proceeds to the next step and eventually promotes.
+   - **Fail/Error:** rollout aborts and returns to the previous stable revision.
 
 ---
 
@@ -67,14 +72,11 @@ See: `docs/images/project8-architecture.svg`
 
 ---
 
-## 5. Why This Matters (Interview-Level Framing)
+## 5. Why This Matters
 
-Kubernetes alone can “roll forward” based on readiness probes, but readiness is not the same as user impact. Progressive delivery adds a missing layer:
+Readiness probes answer “did the container start?” Progressive delivery answers “is the new revision safe under observation?”
 
-- Deploy slowly
-- Measure behavior
-- Decide automatically
-- Roll back safely
-
-This project shows the engineering judgment required when “ideal metrics” are not available (no HTTP success rate),
-and how to select a reliable gate from the telemetry that *does* exist.
+This project demonstrates the engineering judgment required when:
+- ideal metrics are not available
+- you must choose a conservative, reliable gate
+- missing telemetry must be handled safely (fail-closed)

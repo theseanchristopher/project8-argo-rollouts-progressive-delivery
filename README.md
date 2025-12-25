@@ -1,123 +1,74 @@
 # Project 8 — Progressive Delivery with Argo Rollouts and Prometheus (GitOps)
 
-This project demonstrates **production-grade progressive delivery** on Kubernetes using **Argo Rollouts**, **Prometheus-based analysis**, and **GitOps workflows with Argo CD**.
+Project 8 demonstrates **production-style progressive delivery** on Kubernetes using:
 
-Rather than treating deployments as a binary “apply and hope” operation, Project 8 shows how deployments can be converted into **measured, automated decisions**. Each release is evaluated using real metrics before being promoted, and automatically rolled back if safety conditions are violated.
+- **Argo Rollouts** for canary deployments with step-based promotion
+- **Prometheus-based analysis** to gate promotion on real telemetry
+- **GitOps with Argo CD** so rollout policy and analysis gates are version-controlled
 
-This project intentionally mirrors **real-world platform engineering constraints**, including imperfect metrics, missing signals, and the need to design **fail-safe deployment gates**.
+Instead of treating deployments as a binary “apply and hope” operation, this project turns a release into a **measured decision**:
+shift gradually, pause, evaluate metrics, and **promote or roll back automatically**.
 
 ---
 
-## 1. Why Progressive Delivery Is Necessary
+## 1. Problem Statement
 
-Standard Kubernetes `Deployment` rollouts rely on:
-- Pod readiness probes
-- RollingUpdate strategies
+A standard Kubernetes `Deployment` can roll forward using readiness probes and a RollingUpdate strategy, but it cannot answer:
 
-While useful, these mechanisms **do not measure user impact** or application stability beyond “the container started.” In production systems, many failures occur **after** a pod becomes ready:
+- “Is the new revision stable after it becomes Ready?”
+- “Did it start crash-looping 60 seconds after startup?”
+- “Can we stop promotion automatically if telemetry is missing or unhealthy?”
 
-- Crash loops shortly after startup
-- Resource exhaustion under load
-- Configuration errors that only surface minutes later
-
-Progressive delivery addresses this gap by:
-- Releasing changes incrementally
-- Observing behavior between steps
-- Making promotion decisions based on metrics
-- Rolling back automatically when conditions degrade
-
-Project 8 implements this model end to end.
+Progressive delivery addresses these gaps by combining **incremental rollout steps** with **automated analysis**.
 
 ---
 
 ## 2. High-Level Architecture
 
-At a high level, Project 8 integrates five layers:
+This project ties together five layers:
 
 1. **CI (Project 1)** builds and publishes container images
-2. **GitOps repository (Project 8)** defines rollout and analysis behavior
-3. **Argo CD** continuously reconciles desired state into the cluster
-4. **Argo Rollouts** manages canary deployments and analysis execution
-5. **Prometheus** provides the metrics used to gate promotion
+2. **GitOps repo (Project 8)** defines rollout strategy + analysis policy
+3. **Argo CD** continuously syncs the desired state into the cluster
+4. **Argo Rollouts** executes the canary strategy and analysis steps
+5. **Prometheus** provides the metrics used for promotion decisions
 
-Each layer is loosely coupled and declarative, making failures observable and behavior reproducible.
-
-A visual overview is provided in `docs/images/project8-architecture.svg`.
+Architecture diagram: `docs/images/project8-architecture.svg`
 
 ---
 
 ## 3. What This Project Demonstrates
 
-This project intentionally focuses on **decision-making during deployments**, not just tooling.
-
-Key capabilities demonstrated:
-
-- Replacing a Kubernetes `Deployment` with an **Argo Rollouts `Rollout`**
-- Implementing a **step-based canary strategy** with pauses
-- Executing **AnalysisRuns** during a rollout step
-- Querying Prometheus directly from Argo Rollouts
-- Designing **defensive AnalysisTemplate conditions**
-- Handling empty metric responses safely
-- Automatically aborting and rolling back failed releases
-- Debugging rollout and analysis failures in a GitOps environment
+- Replacing a Kubernetes `Deployment` with an Argo Rollouts **`Rollout`**
+- A **step-based canary strategy** (weights + pauses)
+- **AnalysisRuns** created and executed during a rollout step
+- A **Prometheus provider** used directly by Argo Rollouts (no external scripts)
+- A **fail-closed** analysis gate that treats missing telemetry as unsafe
+- Automatic abort + rollback on failed analysis
+- Debugging rollouts and analysis failures in a GitOps environment
 
 ---
 
-## 4. Metrics Strategy and Real-World Constraints
+## 4. Metrics Strategy (Real-World Constraints)
 
-A central lesson of Project 8 is that **the metrics you want are not always the metrics you have**.
+The “ideal” gate metric for many apps is an HTTP success rate (for example, a ratio of 2xx to total requests).
+In this environment, request metrics were not available without adding instrumentation and additional scrape configuration.
 
-Initial attempts to gate the rollout using HTTP success-rate metrics failed because:
-- The application was not instrumented
-- Ingress/controller metrics were not available or not scraped
-- Prometheus returned empty vectors for expected metric families
+Rather than inventing metrics, Project 8 uses a platform metric that is commonly present when `kube-state-metrics` is installed:
 
-Rather than introducing new instrumentation mid-project, the rollout gate was redesigned using a **platform-level metric that was proven to exist**:
+- `kube_pod_container_status_restarts_total`
 
-- `kube_pod_container_status_restarts_total` (from kube-state-metrics)
+The final gate measures **restart events in a recent window** and fails the rollout if restarts occur (or if the query returns no data).
 
-This metric detects instability (crashes, restarts) that directly correlates with user-facing failures, and is commonly available in Kubernetes clusters.
+PromQL used:
 
-Project 8 documents:
-- How metrics were validated before use
-- Why empty Prometheus responses must be treated as failures
-- How counter semantics and `increase()` were applied correctly
-- Why a fail-closed gate is safer than fail-open behavior
+```promql
+sum(increase(kube_pod_container_status_restarts_total{namespace="project8-dev"}[2m]))
+```
 
 ---
 
-## 5. Canary Rollout and Analysis Flow
-
-The rollout follows a step-based canary pattern:
-
-1. A new revision is created (new ReplicaSet)
-2. Traffic is shifted partially to the canary
-3. The rollout pauses for observation
-4. An **AnalysisRun** executes:
-   - Prometheus is queried on an interval
-   - Results are evaluated against success/failure conditions
-5. On success, the rollout continues
-6. On failure, the rollout aborts and rolls back
-
-Analysis is not a sidecar or external script — it is **part of the rollout controller’s decision loop**.
-
----
-
-## 6. Failure Handling and Automatic Rollback
-
-Failure is treated as a **first-class outcome**, not an exception.
-
-When analysis fails:
-- The rollout stops progressing
-- Traffic returns to the stable revision
-- Canary pods are scaled down
-- The failure is recorded for audit and debugging
-
-This behavior is deterministic and repeatable, which is critical for production systems where “partial success” is not acceptable.
-
----
-
-## 7. Repository Structure
+## 5. Repository Structure
 
 ```text
 project8-argo-rollouts-progressive-delivery/
@@ -142,7 +93,11 @@ project8-argo-rollouts-progressive-delivery/
 │       │   ├── rollout-analysis-patch.yaml
 │       │   └── kustomization.yaml
 │       ├── pre/
+│       │   ├── namespace.yaml
+│       │   └── kustomization.yaml
 │       └── prod/
+│           ├── namespace.yaml
+│           └── kustomization.yaml
 └── docs/
     ├── architecture.md
     ├── installation.md
@@ -159,32 +114,30 @@ project8-argo-rollouts-progressive-delivery/
 
 ---
 
-## 8. Documentation Map
+## 6. Documentation Map
 
-The `/docs` directory contains deep, standalone documentation:
-
-- **architecture.md** — system overview and component interactions
-- **installation.md** — prerequisites and required components
-- **rollout-controller-overview.md** — how Argo Rollouts works internally
-- **analysis-templates.md** — AnalysisTemplate and AnalysisRun behavior
-- **prometheus-metrics.md** — metric discovery and PromQL derivation
-- **rollout-execution.md** — how to run and verify canary deployments
-- **failure-and-rollback.md** — rollback mechanics and safety guarantees
-- **troubleshooting.md** — common failure modes and debugging workflows
-- **references.md** — official documentation links
+- **`docs/architecture.md`** — components and end-to-end flow
+- **`docs/installation.md`** — prerequisites and required CRDs/services
+- **`docs/rollout-controller-overview.md`** — Rollout vs Deployment, revisions, services
+- **`docs/analysis-templates.md`** — AnalysisTemplate/AnalysisRun mechanics + safe conditions
+- **`docs/prometheus-metrics.md`** — metric discovery and PromQL derivation
+- **`docs/rollout-execution.md`** — how to trigger and verify canary + analysis
+- **`docs/failure-and-rollback.md`** — what happens on failure and how to confirm rollback
+- **`docs/troubleshooting.md`** — common failure modes and a debugging “golden path”
+- **`docs/references.md`** — official documentation links
 
 ---
 
-## 9. Key Takeaways
+## 7. Key Takeaways
 
-- Progressive delivery converts deployments into measurable decisions
-- Metrics must be validated before they can be trusted
-- Empty telemetry is a failure signal, not a success signal
-- Rollouts should fail safely by default
-- GitOps + Argo Rollouts provides a repeatable, auditable deployment model
+- Progressive delivery converts deployments into measurable, automated decisions
+- “No telemetry” is a failure signal for safety gates (fail-closed)
+- Platform metrics can be valid rollout gates when app metrics are missing
+- GitOps makes rollout policy reproducible and auditable
+- Argo Rollouts integrates analysis directly into the rollout controller loop
 
 ---
 
-## 10. References
+## 8. References
 
-See `docs/references.md` for official documentation used throughout this project.
+See `docs/references.md`.

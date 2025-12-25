@@ -1,17 +1,17 @@
 # Failure and Rollback
 
-This document explains what happens when the canary analysis fails, how Argo Rollouts reacts, and what to inspect.
+This document explains what happens when canary analysis fails, how Argo Rollouts reacts, and what to inspect to confirm rollback.
 
 ---
 
-## 1. Failure Conditions in This Project
+## 1. Failure Conditions in Project 8
 
 The canary gate fails when:
 
-1. The Prometheus query returns a value > 0 (restarts occurred), or
-2. The Prometheus query returns no data (`[]`) and we fail closed
+1. The Prometheus query returns a value **greater than 0** (restarts occurred), or
+2. The Prometheus query returns **no data** (`[]`) and the gate fails closed
 
-This conservative approach is intentional. In production, “no data” should not equal “healthy.”
+This conservative approach is intentional: in production, missing telemetry is not a valid signal of health.
 
 ---
 
@@ -19,11 +19,13 @@ This conservative approach is intentional. In production, “no data” should n
 
 When analysis fails:
 
-1. The AnalysisRun enters `Failed` (or `Error` if query evaluation fails)
-2. The Rollout stops progressing through steps
-3. Traffic is shifted back to the stable ReplicaSet (depending on routing configuration)
-4. Canary ReplicaSet scales down
-5. The rollout reports rollback to the previous stable revision
+1. The AnalysisRun transitions to `Failed` (or `Error` for provider/query problems).
+2. The Rollout stops progressing through steps.
+3. The rollout aborts the canary attempt.
+4. The stable revision remains (or becomes) the active revision.
+5. Canary ReplicaSet scales down (depending on strategy settings and traffic routing).
+
+The key outcome: the system does not continue promoting a revision that failed its gate.
 
 ---
 
@@ -35,6 +37,7 @@ kubectl describe rollout project8-nginx-rollout -n project8-dev
 ```
 
 Look for:
+
 - current revision
 - aborted/rollback messages
 - step history
@@ -45,12 +48,13 @@ kubectl get rs -n project8-dev --sort-by=.metadata.creationTimestamp
 ```
 
 You should see:
-- stable ReplicaSet still running
-- canary ReplicaSet scaled down or reduced
+
+- the stable ReplicaSet running
+- the canary ReplicaSet scaled down or reduced
 
 ---
 
-## 4. How to Inspect the Failed AnalysisRun
+## 4. Inspect the Failed AnalysisRun
 
 ```bash
 kubectl get analysisruns -n project8-dev --sort-by=.metadata.creationTimestamp
@@ -58,16 +62,20 @@ kubectl describe analysisrun -n project8-dev <NAME>
 ```
 
 Look at:
+
 - resolved query
 - measurement values
-- final message explaining the failure condition
+- final message explaining which condition triggered the failure
 
 ---
 
-## 5. Why Rollback Is a Feature, Not a Bug
+## 5. Why Rollback Is a Feature
 
-The entire value proposition of progressive delivery is:
-- you can safely attempt releases
-- failures are expected and handled automatically
-- rollback is fast and predictable
+Progressive delivery assumes failures will happen:
 
+- you attempt releases safely
+- the system detects problems quickly
+- rollback is automatic and repeatable
+- the failure is recorded for audit and debugging
+
+This is one of the clearest real-world benefits of Argo Rollouts compared to a standard Deployment rollout.

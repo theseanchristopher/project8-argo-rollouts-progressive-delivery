@@ -1,64 +1,67 @@
 # Rollout Controller Overview (Argo Rollouts)
 
-This document explains the Argo Rollouts mental model: how Rollouts work, what a “revision” means,
-and when AnalysisRuns are created.
+This document explains the Argo Rollouts mental model used in Project 8: what a Rollout is, what a revision is, and how stable/canary services interact with a canary strategy.
 
 ---
 
 ## 1. Why Rollouts Instead of Deployments
 
-A standard Kubernetes `Deployment` supports rollout strategies (RollingUpdate), but it cannot natively:
+A Kubernetes `Deployment` can perform a RollingUpdate, but it cannot natively:
 
-- Shift traffic by percentage using stable/canary services
-- Pause between traffic changes for observation
-- Run metric-driven experiments during rollout steps
-- Automatically abort and roll back based on custom metrics
+- shift traffic by percentage using stable/canary services
+- pause between traffic changes
+- run metric-driven experiments during rollout steps
+- automatically abort + roll back based on custom metrics
 
-Argo Rollouts fills this gap.
+Argo Rollouts adds these capabilities through a dedicated controller.
 
 ---
 
 ## 2. Core Objects
 
-### 2.1 Rollout
-A `Rollout` is a controller-managed resource that behaves like a `Deployment`, but with advanced strategy support.
+### 2.1 `Rollout`
+A `Rollout` is a controller-managed resource that behaves like a `Deployment`, but supports advanced strategies.
 
-In this project, the Rollout:
+In Project 8, the Rollout:
+
 - creates ReplicaSets (revisions)
-- shifts traffic using stable/canary service selectors
-- executes analysis steps
+- advances through canary steps (weight → pause → analysis)
+- aborts and rolls back on failed analysis
 
-### 2.2 ReplicaSet Revisions
-A new revision is created when the Rollout’s **pod template** changes (commonly: image tag change). Each revision gets a new “pod-template-hash.”
+### 2.2 ReplicaSets and Revisions
+A new revision is created when the Rollout’s **pod template** changes (commonly the image tag). Each revision gets a new `pod-template-hash`.
 
-Practical implication:
-- If you don’t change the pod template, you won’t trigger a new revision
-- If you don’t trigger a new revision, you may not see a new AnalysisRun
+Practical implications:
 
-### 2.3 Services (Stable / Canary)
-This project uses two services:
-- **stable service** selects stable ReplicaSet
-- **canary service** selects canary ReplicaSet
+- No pod template change → no new revision
+- No new revision → no new canary attempt → no new AnalysisRun
 
-Traffic management depends on the chosen traffic routing method. Even without an ingress/router integration, the Rollout still executes steps and analysis, but “traffic” in practice may be conceptual unless routed through a layer that honors the canary/stable split.
+### 2.3 Stable and Canary Services
+This project defines two Services:
+
+- **stable service** selects the stable ReplicaSet
+- **canary service** selects the canary ReplicaSet
+
+Depending on the traffic routing method, these services can be used by a router/ingress to direct user traffic. Even without advanced traffic routing, Rollouts still performs step progression and analysis deterministically.
 
 ### 2.4 AnalysisTemplate and AnalysisRun
-- `AnalysisTemplate` defines *what to measure* and *how to interpret it*
-- `AnalysisRun` is an instantiation created during a rollout step
+- `AnalysisTemplate` defines what to measure and how to decide
+- `AnalysisRun` is created during rollout progression and records each measurement and the final outcome
 
 ---
 
-## 3. Canary Steps and What They Mean
+## 3. Canary Steps Used in Project 8
 
-A canary strategy is defined as a sequence of steps, typically:
+A canary strategy is a sequence of steps, typically:
 
-- setWeight: shift a percentage to canary
-- pause: wait for a period
-- analysis: run a defined analysis gate
+- `setWeight`: shift some percentage to canary
+- `pause`: wait for observation (time-based pause or manual)
+- `analysis`: execute a gate based on telemetry
 
-Rollouts executes steps in order. If any analysis fails:
+Rollouts executes steps in order. If the analysis fails:
+
 - the rollout aborts
-- the system rolls back to stable revision
+- the system returns to the previous stable revision
 
 ---
 
@@ -67,10 +70,11 @@ Rollouts executes steps in order. If any analysis fails:
 AnalysisRuns are created when the rollout reaches an `analysis` step for an active rollout attempt.
 
 Common reasons you may not see a new AnalysisRun:
-- no new revision was created
-- rollout never reached the analysis step (paused earlier, or aborted early)
-- patch that injects the analysis step did not apply
-- namespace mismatch (template not found)
+
+- no new revision was created (pod template unchanged)
+- the rollout never reached the analysis step (paused earlier or aborted)
+- the analysis step patch did not apply in the dev overlay
+- the AnalysisTemplate does not exist in the namespace
 
 ---
 
@@ -81,12 +85,12 @@ Common reasons you may not see a new AnalysisRun:
 kubectl argo rollouts get rollout project8-nginx-rollout -n project8-dev --watch
 ```
 
-### 5.2 List revisions and ReplicaSets
+### 5.2 Inspect revisions (ReplicaSets)
 ```bash
 kubectl get rs -n project8-dev --sort-by=.metadata.creationTimestamp
 ```
 
-### 5.3 Inspect rollout YAML for step configuration
+### 5.3 Inspect applied rollout YAML
 ```bash
 kubectl get rollout project8-nginx-rollout -n project8-dev -o yaml
 ```
@@ -96,9 +100,10 @@ kubectl get rollout project8-nginx-rollout -n project8-dev -o yaml
 ## 6. Interview Summary
 
 Argo Rollouts adds a control plane for deployments:
-- you roll out incrementally
-- you pause and measure
-- you decide automatically
-- you roll back safely
 
-That pattern (progressive delivery) is one of the clearest signals that a candidate understands real production deployment engineering.
+- roll out incrementally
+- pause and measure
+- decide automatically
+- roll back safely
+
+This project demonstrates not just tooling, but the decision-making pattern used in production platform engineering.

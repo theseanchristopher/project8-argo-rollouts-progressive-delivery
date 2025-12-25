@@ -6,7 +6,7 @@ Official documentation used for Project 8.
 
 ## 1. Argo Rollouts
 
-- Argo Rollouts (main documentation)  
+- Argo Rollouts documentation  
   https://argoproj.github.io/argo-rollouts/
 
 - Canary strategy  
@@ -15,7 +15,7 @@ Official documentation used for Project 8.
 - Analysis (AnalysisTemplate / AnalysisRun)  
   https://argoproj.github.io/argo-rollouts/features/analysis/
 
-- kubectl argo rollouts plugin  
+- kubectl plugin (`kubectl argo rollouts`)  
   https://argoproj.github.io/argo-rollouts/features/kubectl-plugin/
 
 ---
@@ -44,7 +44,7 @@ Official documentation used for Project 8.
 - kube-state-metrics repository  
   https://github.com/kubernetes/kube-state-metrics
 
-- Metrics documentation (kube-state-metrics docs)  
+- kube-state-metrics docs  
   https://github.com/kubernetes/kube-state-metrics/tree/main/docs
 
 ---
@@ -54,7 +54,7 @@ Official documentation used for Project 8.
 - Kustomize documentation  
   https://kubectl.docs.kubernetes.io/references/kustomize/
 
-- Kubernetes documentation: Managing objects with Kustomize  
+- Managing objects with Kustomize (Kubernetes docs)  
   https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/
 
 ---
